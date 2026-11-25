@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { PRESETS, VESSEL, type CargoId, type ConditionId, type Plan } from './vessel'
+import { CARGOES, CONSUMABLES, PRESETS, VESSEL, type CargoId, type ConditionId, type Plan } from './vessel'
 
 export const STEP = 1_000 // tonnes per drop / click
 
@@ -28,18 +28,46 @@ interface State {
   save: () => void
 }
 
+// Share links: #plan=1.coal.9400~3.iron-ore.13500&cond=arrival&draft=12.5
+export function encodeShare(plan: Plan, cond: ConditionId, draft: number) {
+  const holds = Object.entries(plan).flatMap(([id, p]) => (p ? [`${id}.${p.cargo}.${p.tonnes}`] : []))
+  return new URLSearchParams({ plan: holds.join('~'), cond, draft: String(draft) }).toString()
+}
+
+// The hash is untrusted input: unknown holds, cargoes or bad numbers are dropped.
+export function decodeShare(hash: string): { plan: Plan; condition: ConditionId; portDraft: number } | null {
+  const q = new URLSearchParams(hash.replace(/^#/, ''))
+  if (!q.has('plan')) return null
+  const plan: Plan = {}
+  for (const part of (q.get('plan') ?? '').split('~')) {
+    const [id, cargo, t] = part.split('.')
+    const hold = Number(id), tonnes = Math.round(Number(t))
+    if (VESSEL.holds.some((h) => h.id === hold) && cargo in CARGOES && tonnes > 0 && tonnes <= 50_000)
+      plan[hold] = { cargo: cargo as CargoId, tonnes }
+  }
+  const cond = q.get('cond')
+  const draft = Number(q.get('draft'))
+  return {
+    plan,
+    condition: cond && cond in CONSUMABLES ? (cond as ConditionId) : 'departure',
+    portDraft: draft >= 6 && draft <= VESSEL.summerDraft ? draft : VESSEL.summerDraft,
+  }
+}
+
+const shared = typeof location === 'undefined' ? null : decodeShare(location.hash)
+
 // Every plan edit goes through here so it lands on the undo stack.
 const edit = (s: State, plan: Plan, extra: Partial<State> = {}): Partial<State> => ({
   plan, past: [...s.past.slice(-49), s.plan], future: [], preset: null, saved: null, ...extra,
 })
 
 export const usePlan = create<State>((set, get) => ({
-  plan: structuredClone(PRESETS.homogeneous.plan),
+  plan: shared?.plan ?? structuredClone(PRESETS.homogeneous.plan),
   cargo: 'coal',
-  condition: 'departure',
-  portDraft: VESSEL.summerDraft,
+  condition: shared?.condition ?? 'departure',
+  portDraft: shared?.portDraft ?? VESSEL.summerDraft,
   selectedHold: null,
-  preset: 'homogeneous',
+  preset: shared ? null : 'homogeneous',
   saved: null,
   past: [],
   future: [],

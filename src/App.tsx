@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react'
-import { usePlan, STEP } from './store'
+import { useEffect, useMemo, useState } from 'react'
+import { usePlan, STEP, encodeShare } from './store'
 import { ShipProfile } from './ShipProfile'
 import { StrengthChart } from './StrengthChart'
 import {
@@ -16,6 +16,18 @@ export default function App() {
   const failing = new Set(fails.flatMap((i) => (i.holdId ? [i.holdId] : [])))
   const limitDraft = Math.min(VESSEL.summerDraft, s.portDraft)
   const canSave = c.cargo > 0 && fails.length === 0
+
+  const [copied, setCopied] = useState(false)
+  const [showGuide, setShowGuide] = useState(() => { try { return localStorage.getItem('guide-dismissed') !== '1' } catch { return true } })
+  const dismissGuide = () => { setShowGuide(false); try { localStorage.setItem('guide-dismissed', '1') } catch { /* private mode */ } }
+  const shareUrl = () => `${location.origin}${location.pathname}#${encodeShare(s.plan, s.condition, s.portDraft)}`
+  const copyLink = async () => {
+    const url = shareUrl()
+    history.replaceState(null, '', url)
+    try { await navigator.clipboard.writeText(url) } catch { /* the address bar has it */ }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,10 +64,23 @@ export default function App() {
               <button onClick={s.redo} disabled={!s.future.length} title="Redo (Ctrl/⌘+Shift+Z)" className="rounded-md border border-white/20 px-2.5 py-1.5 text-sm hover:bg-white/10 disabled:opacity-40">Redo</button>
             </div>
             <StatusBadge fails={fails.length} warns={warns.length} empty={c.cargo === 0} />
+            <button onClick={copyLink} className="no-print rounded-md border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10" aria-live="polite">{copied ? 'Link copied' : 'Share plan'}</button>
             <button onClick={() => window.print()} className="no-print rounded-md border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">Print report</button>
           </div>
         </div>
       </header>
+
+      {showGuide && (
+        <div className="no-print border-b border-sky-200 bg-sky-50">
+          <div className="mx-auto flex max-w-[88rem] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 text-sm text-sky-950">
+            <b>Try it in 30 seconds:</b>
+            <span>1. <button onClick={() => s.loadPreset('unsafe')} className="font-semibold text-sky-700 underline underline-offset-2">Load the unsafe example</button></span>
+            <span>2. Click a red check to see the hold behind it</span>
+            <span>3. Fix it in the hold table (or Undo), then approve</span>
+            <button onClick={dismissGuide} className="ml-auto text-sky-700 hover:underline" aria-label="Dismiss the guide">Got it</button>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto grid max-w-[88rem] gap-4 px-4 py-4 lg:grid-cols-[15rem_1fr_19rem]">
         {/* Left: cargo, presets, port */}

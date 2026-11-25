@@ -70,3 +70,15 @@ describe('undo / redo', () => {
     expect(st().future).toEqual([])
   })
 })
+
+describe('share links', () => {
+  it('round-trips a plan and drops junk from the hash', async () => {
+    const { encodeShare, decodeShare } = await import('./store')
+    const hash = encodeShare(PRESETS.alternate.plan, 'arrival', 12.5)
+    expect(decodeShare('#' + hash)).toEqual({ plan: PRESETS.alternate.plan, condition: 'arrival', portDraft: 12.5 })
+    const bad = decodeShare('#plan=9.coal.1000~2.gold.500~3.coal.-4~4.coal.2000&cond=x&draft=99')!
+    expect(bad.plan).toEqual({ 4: { cargo: 'coal', tonnes: 2000 } })
+    expect(bad.condition).toBe('departure')
+    expect(decodeShare('')).toBeNull()
+  })
+})
