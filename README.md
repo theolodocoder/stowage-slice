@@ -12,7 +12,8 @@ A small, working sample of a bulk carrier loading computer, built for a job prop
 - **Standard conditions** from a typical loading manual: homogeneous, alternate holds, block loading, plus an unsafe example.
 - **Loading sequence** in four steps. Intermediate stages use harbour limits, the final stage uses sea limits.
 - **Port draft limit** with "how much more cargo fits".
-- Editable hold table and a printable report.
+- Undo / redo for every plan edit (buttons or Ctrl/⌘+Z, Shift for redo).
+- Editable hold table and a printable report. On phones the ship and checks come first.
 
 Stack: React 19, Vite, TypeScript, Zustand, Tailwind CSS. The loading rules are unit-tested with Vitest (`npm test`) and run in CI before every deploy.
 

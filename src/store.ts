@@ -11,6 +11,10 @@ interface State {
   selectedHold: number | null
   preset: string | null
   saved: string | null
+  past: Plan[]
+  future: Plan[]
+  undo: () => void
+  redo: () => void
   setCargo: (c: CargoId) => void
   setCondition: (c: ConditionId) => void
   setPortDraft: (m: number) => void
@@ -24,6 +28,11 @@ interface State {
   save: () => void
 }
 
+// Every plan edit goes through here so it lands on the undo stack.
+const edit = (s: State, plan: Plan, extra: Partial<State> = {}): Partial<State> => ({
+  plan, past: [...s.past.slice(-49), s.plan], future: [], preset: null, saved: null, ...extra,
+})
+
 export const usePlan = create<State>((set, get) => ({
   plan: structuredClone(PRESETS.homogeneous.plan),
   cargo: 'coal',
@@ -32,6 +41,10 @@ export const usePlan = create<State>((set, get) => ({
   selectedHold: null,
   preset: 'homogeneous',
   saved: null,
+  past: [],
+  future: [],
+  undo: () => set((s) => s.past.length ? { plan: s.past.at(-1)!, past: s.past.slice(0, -1), future: [s.plan, ...s.future], preset: null, saved: null } : s),
+  redo: () => set((s) => s.future.length ? { plan: s.future[0], future: s.future.slice(1), past: [...s.past, s.plan], preset: null, saved: null } : s),
   setCargo: (cargo) => set({ cargo }),
   setCondition: (condition) => set({ condition }),
   setPortDraft: (portDraft) => set({ portDraft }),
@@ -41,27 +54,27 @@ export const usePlan = create<State>((set, get) => ({
       const cur = s.plan[holdId]
       // One cargo per hold: dropping a different cargo replaces what's there.
       const next = cur && cur.cargo === cargo ? { cargo, tonnes: cur.tonnes + tonnes } : { cargo, tonnes }
-      return { plan: { ...s.plan, [holdId]: next }, selectedHold: holdId, preset: null, saved: null }
+      return edit(s, { ...s.plan, [holdId]: next }, { selectedHold: holdId })
     }),
   remove: (holdId) =>
     set((s) => {
       const cur = s.plan[holdId]
       if (!cur) return s
       const tonnes = cur.tonnes - STEP
-      return { plan: { ...s.plan, [holdId]: tonnes > 0 ? { ...cur, tonnes } : undefined }, preset: null, saved: null }
+      return edit(s, { ...s.plan, [holdId]: tonnes > 0 ? { ...cur, tonnes } : undefined })
     }),
   setTonnes: (holdId, tonnes) =>
     set((s) => {
       const cur = s.plan[holdId]
       const t = Math.max(0, Math.round(tonnes || 0))
-      return { plan: { ...s.plan, [holdId]: t > 0 ? { cargo: cur?.cargo ?? s.cargo, tonnes: t } : undefined }, preset: null, saved: null }
+      return edit(s, { ...s.plan, [holdId]: t > 0 ? { cargo: cur?.cargo ?? s.cargo, tonnes: t } : undefined })
     }),
   setHoldCargo: (holdId, cargo) =>
     set((s) => {
       const cur = s.plan[holdId]
-      return { plan: { ...s.plan, [holdId]: cargo ? { cargo, tonnes: cur?.tonnes ?? STEP } : undefined }, selectedHold: holdId, preset: null, saved: null }
+      return edit(s, { ...s.plan, [holdId]: cargo ? { cargo, tonnes: cur?.tonnes ?? STEP } : undefined }, { selectedHold: holdId })
     }),
-  loadPreset: (key) => set({ plan: structuredClone(PRESETS[key].plan), preset: key, selectedHold: null, saved: null }),
-  clear: () => set({ plan: {}, preset: null, selectedHold: null, saved: null }),
+  loadPreset: (key) => set((s) => edit(s, structuredClone(PRESETS[key].plan), { preset: key, selectedHold: null })),
+  clear: () => set((s) => edit(s, {}, { selectedHold: null })),
   save: () => set({ saved: new Date().toLocaleTimeString() }),
 }))

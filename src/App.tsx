@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { usePlan, STEP } from './store'
 import { ShipProfile } from './ShipProfile'
 import { StrengthChart } from './StrengthChart'
@@ -17,6 +17,19 @@ export default function App() {
   const limitDraft = Math.min(VESSEL.summerDraft, s.portDraft)
   const canSave = c.cargo > 0 && fails.length === 0
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
+      if ((e.target as HTMLElement).closest('input, select, textarea')) return
+      e.preventDefault()
+      const { undo, redo } = usePlan.getState()
+      if (e.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="bg-[#0b1726] text-white">
@@ -34,6 +47,10 @@ export default function App() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <div className="no-print flex gap-1">
+              <button onClick={s.undo} disabled={!s.past.length} title="Undo (Ctrl/⌘+Z)" className="rounded-md border border-white/20 px-2.5 py-1.5 text-sm hover:bg-white/10 disabled:opacity-40">Undo</button>
+              <button onClick={s.redo} disabled={!s.future.length} title="Redo (Ctrl/⌘+Shift+Z)" className="rounded-md border border-white/20 px-2.5 py-1.5 text-sm hover:bg-white/10 disabled:opacity-40">Redo</button>
+            </div>
             <StatusBadge fails={fails.length} warns={warns.length} empty={c.cargo === 0} />
             <button onClick={() => window.print()} className="no-print rounded-md border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">Print report</button>
           </div>
@@ -42,7 +59,7 @@ export default function App() {
 
       <main className="mx-auto grid max-w-[88rem] gap-4 px-4 py-4 lg:grid-cols-[15rem_1fr_19rem]">
         {/* Left: cargo, presets, port */}
-        <aside className="no-print space-y-4">
+        <aside className="no-print order-3 space-y-4 lg:order-none">
           <Card title="Cargo" hint={`Drag onto a hold, or pick one and click a hold's +. ${fmt(STEP)} t per step.`}>
             <div className="space-y-1.5">
               {(Object.keys(CARGOES) as CargoId[]).map((id) => (
@@ -80,7 +97,7 @@ export default function App() {
         </aside>
 
         {/* Centre: profile + strength */}
-        <section className="min-w-0 space-y-4">
+        <section className="order-1 min-w-0 space-y-4 lg:order-none">
           <Card title="Side profile" hint="Click a hold to inspect it. Bow on the right.">
             <ShipProfile plan={s.plan} c={c} selected={s.selectedHold} failing={failing}
               onSelect={(id) => s.selectHold(s.selectedHold === id ? null : id)}
@@ -155,7 +172,7 @@ export default function App() {
         </section>
 
         {/* Right: summary + checks */}
-        <aside className="space-y-4">
+        <aside className="order-2 space-y-4 lg:order-none">
           <Card title={`${CONSUMABLES[s.condition].label} condition`}>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm">
               <Stat label="Cargo" value={`${fmt(c.cargo)} t`} />

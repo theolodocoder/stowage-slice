@@ -53,3 +53,20 @@ describe('loading condition checks', () => {
     expect(c.maxSf).toBe(0)
   })
 })
+
+describe('undo / redo', () => {
+  it('steps plan edits back and forward', async () => {
+    const { usePlan } = await import('./store')
+    const st = usePlan.getState
+    st().clear()
+    st().add(3, 'coal')
+    st().add(3, 'coal')
+    expect(st().plan[3]?.tonnes).toBe(2_000)
+    st().undo()
+    expect(st().plan[3]?.tonnes).toBe(1_000)
+    st().redo()
+    expect(st().plan[3]?.tonnes).toBe(2_000)
+    st().add(1, 'coal') // a new edit drops the redo branch
+    expect(st().future).toEqual([])
+  })
+})
